@@ -27,13 +27,13 @@
 - [x] Add GEMINI_API_KEY and OPENAI_API_KEY to .env
 
 ### 2. Path B: Precision RAG & Citations
-- [ ] Implement page-anchored chunking to prevent page-crossing.
-- [ ] Create embedding_utils.py for OpenAI text-embedding-3-small.
-- [ ] Sync upload flow: Extract -> Chunk -> Embed -> DB Store.
+- [x] Implement page-anchored chunking to prevent page-crossing.
+- [x] Create embedding_utils.py for OpenAI text-embedding-3-small.
+- [x] Sync upload flow: Extract -> Chunk -> Embed -> DB Store.
 
 ### 3. Path A: Study Tools (Gemini 1.5 Flash)
-- [ ] Create Mega-Prompt for Summary and 10-Question Quiz.
-- [ ] Create Manual-Prompt for 10 Flashcards.
+- [ ] Create Mega-Prompt for Summary and 10-Question Quiz. (Summary should summarize the main points and the quizzes should test user knowledge across the whole PDF using multiple choice questions)
+- [ ] Create Manual-Prompt for 10 Flashcards. (These flashcards contain the most likely questions that can get asked on the PDF and their given respective answers Q:A)
 - [ ] Build /process-document and /generate-cards endpoints.
 
 ### 4. Interactive Q&A & Dictionary Logic
