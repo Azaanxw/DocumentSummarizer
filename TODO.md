@@ -23,7 +23,7 @@
 
 ### 1. Foundation & API Setup
 - [x] Enable pgvector and create tables/RPC in Supabase (1536 dim)
-- [x] Install google-generativeai, openai, and langchain-text-splitters
+- [x] Install google-genai, openai, and langchain-text-splitters
 - [x] Add GEMINI_API_KEY and OPENAI_API_KEY to .env
 
 ### 2. Path B: Precision RAG & Citations
@@ -37,10 +37,13 @@
 - [x] Build /process-document and /generate-cards endpoints.
 
 ### 4. Interactive Q&A & Dictionary Logic
-- [ ] Build /ask endpoint using Supabase RPC for retrieval.
-- [ ] Refine Q&A prompt to return Answer + Page Number + Snippet.
-- [ ] Add backend helper for Free Dictionary API proxy.
-- [ ] Standardize JSON payload for frontend PDF "jump-to-page" sync.
+- [x] Build /ask endpoint using Supabase RPC for retrieval.
+- [x] Refine Q&A prompt to return Answer + Page Number + Snippet.
+- [x] Add backend helper for Free Dictionary API proxy (GET /dictionary/{word}).
+- [x] Standardize JSON payload for frontend PDF "jump-to-page" sync.
+- [x] Add search_chunks() to db_utils.py to call match_documents RPC.
+- [x] Add generate_answer() to gemini_utils.py with grounded citation prompt.
+- [x] Handle graceful 404 when no relevant chunks found for a question.
 
 -------------------------------------------------
 
@@ -53,9 +56,29 @@
 -------------------------------------------------
 
 ## Phase 5: Production & Polish 🛡️
-- [ ] Containerize Backend & Frontend using Docker
-- [ ] Implement Rate Limiting (prevent API spam/abuse)
-- [ ] Configure strict CORS policies for frontend communication
-- [ ] Add Application Logging & Error Tracking
-- [ ] Setup GitHub Actions for CI/CD (Automated testing/deployment)
-- [ ] Final deployment (e.g., Vercel for Frontend, Render/AWS for Backend)
+
+### Infrastructure & Deployment
+- [ ] Containerize backend using Docker
+- [ ] Deploy backend to AWS ECS (Fargate) via Terraform
+- [ ] Deploy frontend to Vercel (auto-deploy from GitHub main branch)
+- [ ] Configure environment variables in ECS task definition and Vercel project settings
+
+### CI/CD
+- [ ] Setup GitHub Actions pipeline — lint, test, build Docker image on PR
+- [ ] Auto-deploy to ECS on merge to main via GitHub Actions
+
+### Security & Auth
+- [ ] Implement FastAPI JWT dependency for auth guarding (replace MOCK_USER_ID)
+- [ ] Configure strict CORS policy — whitelist Vercel frontend domain only
+- [ ] Enable Supabase RLS policies for all tables (documents, document_chunks, profiles)
+- [ ] Rotate all API keys and move secrets to AWS Secrets Manager
+
+### Reliability
+- [ ] Add structured application logging (replace print statements with Python logging)
+- [ ] Integrate error tracking (e.g. Sentry) for both frontend and backend
+- [ ] Implement rate limiting on all endpoints (prevent API spam/abuse)
+- [ ] Add request timeout handling for Gemini and OpenAI calls
+
+### Performance
+- [ ] Tune RAG retrieval — test match_threshold and match_count against real queries
+- [ ] Add HNSW index to document_chunks.embedding for faster similarity search at scale

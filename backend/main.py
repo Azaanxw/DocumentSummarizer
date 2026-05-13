@@ -1,12 +1,14 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 from s3_utils import upload_to_s3
-from db_utils import save_document_metadata, save_document_chunks, get_document_content
+from db_utils import save_document_metadata, save_document_chunks, get_document_content, search_chunks
 from dotenv import load_dotenv
 from pdf_utils import extract_text_from_pdf, extract_chunks_from_pdf
 from embedding_utils import embed_texts
-from gemini_utils import generate_summary_and_quiz, generate_flashcards
+from gemini_utils import generate_summary_and_quiz, generate_flashcards, generate_answer
 import uuid
+import httpx
+import asyncio
 
 load_dotenv()
 app = FastAPI()
@@ -15,6 +17,10 @@ MOCK_USER_ID = "57de27a3-60c2-430e-8896-f8daf0e835d9"
 
 class DocumentRequest(BaseModel):
     document_id: str
+
+class AskRequest(BaseModel):
+    document_id: str
+    question: str
 
 @app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
@@ -87,3 +93,42 @@ async def generate_cards(req: DocumentRequest):
         raise HTTPException(status_code=500, detail="Failed to generate flashcards")
 
     return result
+
+@app.post("/ask")
+async def ask(req: AskRequest):
+    query_embedding = embed_texts([req.question])[0]
+    chunks = search_chunks(req.document_id, query_embedding)
+
+    if not chunks:
+        raise HTTPException(status_code=404, detail="No relevant content found for this question")
+
+    result = generate_answer(req.question, chunks)
+    if not result:
+        raise HTTPException(status_code=500, detail="Failed to generate answer")
+
+    return result
+
+@app.get("/dictionary/{word}")
+async def dictionary(word: str):
+    async with httpx.AsyncClient() as client:
+        dict_resp, syn_resp = await asyncio.gather(
+            client.get(f"https://api.dictionaryapi.dev/api/v2/entries/en/{word}"),
+            client.get(f"https://api.datamuse.com/words?rel_syn={word}&max=5")
+        )
+
+    if dict_resp.status_code == 404:
+        raise HTTPException(status_code=404, detail="Word not found")
+
+    entry = dict_resp.json()[0]
+    meaning = entry["meanings"][0]
+    first_def = meaning["definitions"][0]
+
+    synonyms = [s["word"] for s in syn_resp.json()] if syn_resp.status_code == 200 else []
+
+    return {
+        "word": entry.get("word", word),
+        "phonetic": entry.get("phonetic", ""),
+        "definition": first_def["definition"],
+        "example": first_def.get("example", ""),
+        "synonyms": synonyms
+    }

@@ -35,6 +35,16 @@ Choice: Shadcn/ui + Tailwind CSS
 Why: These provide the best minimalistic designs and are currently the industry standard for building modern web apps.
 
 7. **Deployment & DevOps**
-Choice: Docker + GitHub Actions
+Choice: Docker + GitHub Actions + Vercel (frontend) + AWS ECS (backend)
 
-Why: I chose Docker to ensure the backend and frontend run exactly the same way in production as they do on my local machine. I paired this with GitHub Actions to handle the CI/CD pipelines, automating the building and testing process.
+Why: Docker ensures the backend runs identically across local and production environments. GitHub Actions automates CI/CD. Vercel hosts the Next.js frontend with native App Router support and zero-config deploys from GitHub. AWS ECS hosts the FastAPI backend — it extends the existing AWS infrastructure (S3, Terraform) into a complete cloud story on one provider, demonstrating real production deployment patterns (containerisation, IAM, VPC, load balancing) that Render or similar PaaS tools abstract away.
+
+8. **AI Model for Study Tools**
+Choice: Gemini 3.1 Flash Lite (`google-genai` SDK)
+
+Why: Chosen for having the highest free-tier quota of all available models (500 RPD, 15 RPM). Gemini 2.0/2.5 Flash were exhausted during development, and Pro models have no free quota. OpenAI is already used for embeddings so Gemini keeps generation on a separate provider. The `google-genai` SDK replaces the deprecated `google-generativeai` package and is required for all Gemini 3.x models.
+
+9. **Dictionary Lookup**
+Choice: Free Dictionary API + Datamuse API
+
+Why: No single free API covers everything reliably. Free Dictionary API (`api.dictionaryapi.dev`) handles definitions, phonetics, and examples. Datamuse (`api.datamuse.com`) handles synonyms, as the Free Dictionary API returns none for many common words. Both are keyless with no rate limits. Calls run in parallel via `asyncio.gather()` so there's no added latency.

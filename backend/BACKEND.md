@@ -2,13 +2,13 @@
 
 ## Overview
 
-FastAPI backend that accepts PDF uploads, extracts text, stores the raw file in AWS S3, chunks and embeds the text for RAG, saves everything to Supabase (PostgreSQL + pgvector), and generates AI study tools (summary, quiz, flashcards) via Gemini 3.1 Flash Lite.
+FastAPI backend for PDF ingestion, RAG-powered Q&A with page citations, AI study tools (summary, quiz, flashcards) via Gemini 3.1 Flash Lite, and a Free Dictionary API proxy.
 
 ## Directory Structure
 
 ```
 backend/
-├── main.py             # FastAPI app — /upload, /process-document, /generate-cards
+├── main.py             # FastAPI app — /upload, /process-document, /generate-cards, /ask, /dictionary/{word}
 ├── pdf_utils.py        # PDF text extraction + page-anchored chunking (PyMuPDF)
 ├── embedding_utils.py  # Batch text embedding via OpenAI text-embedding-3-small
 ├── gemini_utils.py     # Gemini 3.1 Flash Lite — summary, quiz, flashcard generation
@@ -49,6 +49,19 @@ Entry point. Defines the FastAPI app and all endpoints.
 - Fetches `content` from `documents` table, sends to Gemini 3.1 Flash Lite.
 - Returns `{"flashcards": [{"question": str, "answer": str}, ...]}`
 
+**`POST /ask`** — RAG-powered Q&A with page citations.
+- Body: `{"document_id": "uuid", "question": "..."}`
+- Embeds the question, calls `match_documents` RPC to retrieve top 5 relevant chunks (threshold 0.5).
+- 404 if no relevant chunks found.
+- Passes chunks + question to Gemini with a grounded-only prompt.
+- Returns `{"answer": str, "citations": [{"page_number": int, "snippet": str}]}`
+
+**`GET /dictionary/{word}`** — Free Dictionary API proxy.
+- Calls `api.dictionaryapi.dev` server-side to avoid frontend CORS issues.
+- Returns `{"word": str, "phonetic": str, "definition": str, "example": str, "synonyms": list[str]}`
+- Synonyms capped at 5. Example and synonyms are empty string/list if not available.
+- 404 if word not found.
+
 > `MOCK_USER_ID` is hardcoded — replaced by JWT auth once the React frontend is ready.
 
 ---
@@ -79,6 +92,7 @@ Gemini 3.1 Flash Lite study tool generation. Both functions call `_get_client()`
 |---|---|
 | `generate_summary_and_quiz(text)` | Sends full document text with a mega-prompt to `gemini-3.1-flash-lite`. Returns `{"summary": str, "quiz": [...]}` — 10 multiple choice questions spread across the document. Returns `None` on error. |
 | `generate_flashcards(text)` | Sends full document text with a manual prompt to `gemini-3.1-flash-lite`. Returns `{"flashcards": [{"question": str, "answer": str}]}` — 10 Q&A pairs. Returns `None` on error. |
+| `generate_answer(question, chunks)` | Builds context from retrieved chunks formatted as `[Page N]\ntext`, sends to Gemini with a grounded-only prompt. Returns `{"answer": str, "citations": [{"page_number": int, "snippet": str}]}`. Returns `None` on error. |
 
 ---
 
@@ -90,6 +104,7 @@ Supabase (PostgreSQL + pgvector) interactions.
 | `get_supabase_client()` | Initializes client using `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. |
 | `save_document_metadata(user_id, filename, content)` | Inserts into `documents`. Returns inserted row list or `None` on error. |
 | `get_document_content(document_id)` | Fetches the `content` field of a document by its UUID. Returns `str` or `None`. |
+| `search_chunks(document_id, query_embedding, match_count, match_threshold)` | Calls `match_documents` RPC with a query embedding. Defaults: top 5 chunks, 0.5 similarity threshold. Returns list of matching chunks with `content`, `metadata`, `similarity`. |
 | `save_document_chunks(document_id, chunks)` | Batch-inserts into `document_chunks`. Each chunk must have `content`, `metadata`, and `embedding` keys. Returns `True`/`False`. |
 
 **Supabase tables:**

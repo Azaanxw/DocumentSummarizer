@@ -41,6 +41,46 @@ Document:
         print(f"Gemini Summary/Quiz Error: {e}")
         return None
 
+def generate_answer(question: str, chunks: list[dict]) -> dict | None:
+    """Generates a grounded answer with page citations from retrieved chunks."""
+    context = "\n\n".join(
+        f"[Page {c['metadata']['page_number']}]\n{c['content']}" for c in chunks
+    )
+    prompt = f"""You are a precise study assistant. Answer the question using ONLY the context provided below. Do not use any outside knowledge.
+
+Return a JSON response with exactly this structure:
+{{
+  "answer": "<your answer based solely on the context>",
+  "citations": [
+    {{
+      "page_number": <integer>,
+      "snippet": "<exact short quote from the context that supports your answer>"
+    }}
+  ]
+}}
+
+Rules:
+- If the context does not contain enough information to answer, set answer to "The document does not contain enough information to answer this question." and return an empty citations array.
+- Citations must reference only pages that appear in the context.
+- Snippets must be direct quotes from the context, not paraphrases.
+
+Context:
+{context}
+
+Question: {question}"""
+
+    try:
+        client = _get_client()
+        response = client.models.generate_content(
+            model="gemini-3.1-flash-lite",
+            contents=prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json")
+        )
+        return json.loads(response.text)
+    except Exception as e:
+        print(f"Gemini Answer Error: {e}")
+        return None
+
 def generate_flashcards(text: str) -> dict | None:
     """Generates 10 flashcards (Q&A pairs) from document text."""
     prompt = f"""You are an expert study assistant. Analyse the following document and return a JSON response with exactly this structure:

@@ -32,6 +32,21 @@ def get_document_content(document_id: str) -> str | None:
         print(f"Document Fetch Error: {e}")
         return None
 
+def search_chunks(document_id: str, query_embedding: list[float], match_count: int = 5, match_threshold: float = 0.3) -> list[dict]:
+    """Calls match_documents RPC to retrieve semantically similar chunks for a query."""
+    supabase = get_supabase_client()
+    try:
+        response = supabase.rpc("match_documents", {
+            "query_embedding": query_embedding,
+            "match_threshold": match_threshold,
+            "match_count": match_count,
+            "filter_document_id": document_id
+        }).execute()
+        return response.data or []  # type: ignore
+    except Exception as e:
+        print(f"Chunk Search Error: {e}")
+        return []
+
 def save_document_chunks(document_id: str, chunks: list[dict]) -> bool:
     """Batch-inserts page-anchored chunks with embeddings into document_chunks."""
     supabase = get_supabase_client()
