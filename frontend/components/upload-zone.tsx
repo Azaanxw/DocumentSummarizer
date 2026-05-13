@@ -3,6 +3,7 @@
 import { useRef, useState } from "react"
 import { Upload, Loader2, CheckCircle2, AlertCircle } from "lucide-react"
 import { uploadDocument } from "@/lib/api"
+import { friendlyError } from "@/lib/errors"
 import { cn } from "@/lib/utils"
 
 type State = "idle" | "dragging" | "uploading" | "success" | "error"
@@ -28,7 +29,7 @@ export function UploadZone({ onSuccess }: UploadZoneProps) {
       setState("success")
       onSuccess(document_id)
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Upload failed. Please try again.")
+      setErrorMsg(friendlyError(err instanceof Error ? err.message : "", "Upload failed. Please try again."))
       setState("error")
     }
   }

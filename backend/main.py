@@ -167,12 +167,22 @@ async def dictionary(word: str):
     meaning = entry["meanings"][0]
     first_def = meaning["definitions"][0]
 
+    # Find the first example across all definitions in all meanings
+    example = ""
+    for m in entry["meanings"]:
+        for d in m["definitions"]:
+            if d.get("example"):
+                example = d["example"]
+                break
+        if example:
+            break
+
     synonyms = [s["word"] for s in syn_resp.json()] if syn_resp.status_code == 200 else []
 
     return {
         "word": entry.get("word", word),
         "phonetic": entry.get("phonetic", ""),
         "definition": first_def["definition"],
-        "example": first_def.get("example", ""),
+        "example": example,
         "synonyms": synonyms
     }

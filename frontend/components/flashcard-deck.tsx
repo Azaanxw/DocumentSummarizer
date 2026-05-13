@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { generateCards, type Flashcard } from "@/lib/api"
+import { friendlyError } from "@/lib/errors"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react"
@@ -22,7 +23,7 @@ export function FlashcardDeck({ documentId }: FlashcardDeckProps) {
     let cancelled = false
     generateCards(documentId)
       .then((data) => { if (!cancelled) setCards(data.flashcards) })
-      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load") })
+      .catch((err) => { if (!cancelled) setError(friendlyError(err instanceof Error ? err.message : "", "Failed to load flashcards. Please try again.")) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [documentId])
@@ -45,7 +46,11 @@ export function FlashcardDeck({ documentId }: FlashcardDeckProps) {
   }
 
   if (error) {
-    return <p className="py-6 text-sm text-destructive">{error}</p>
+    return (
+      <div className="py-8 text-center">
+        <p className="text-sm text-muted-foreground">{error}</p>
+      </div>
+    )
   }
 
   if (cards.length === 0) {

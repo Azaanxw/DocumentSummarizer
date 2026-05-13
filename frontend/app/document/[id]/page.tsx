@@ -36,7 +36,7 @@ export default function DocumentPage() {
       <div className="flex flex-1 overflow-hidden">
 
         {/* Left — PDF viewer */}
-        <div className="w-1/2 shrink-0 border-r overflow-hidden h-full">
+        <div className="w-2/5 shrink-0 border-r overflow-hidden h-full">
           <PdfViewer documentId={id} ref={pdfRef} />
         </div>
 

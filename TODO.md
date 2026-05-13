@@ -59,6 +59,8 @@
 - [x] Supabase caching of AI content (summary/quiz/flashcards) per document — avoid re-generation on revisit
 - [x] Error boundary / empty-state polish across all views
 - [x] Loading skeletons for all async data fetches
+- [x] User experience bug fixes 
+- [ ] Better UI experience 
 
 -------------------------------------------------
 

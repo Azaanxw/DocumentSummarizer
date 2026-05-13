@@ -21,6 +21,8 @@ export function DictionaryPopup() {
 
   useEffect(() => {
     function onMouseUp(e: MouseEvent) {
+      if (popupRef.current?.contains(e.target as Node)) return
+
       const selection = window.getSelection()
       const text = selection?.toString().trim() ?? ""
 
@@ -35,7 +37,13 @@ export function DictionaryPopup() {
       setVisible(false)
       setEntry(null)
 
-      const x = rect.left + rect.width / 2
+      const POPUP_W = 288 // w-72
+      const MARGIN = 8
+      const center = rect.left + rect.width / 2
+      const x = Math.min(
+        Math.max(MARGIN, center - POPUP_W / 2),
+        window.innerWidth - POPUP_W - MARGIN
+      )
       const y = rect.bottom + 8
       setPos({ x, y })
 
@@ -72,7 +80,7 @@ export function DictionaryPopup() {
   return (
     <div
       ref={popupRef}
-      style={{ left: pos.x, top: pos.y, transform: "translateX(-50%)" }}
+      style={{ left: pos.x, top: pos.y }}
       className="fixed z-50 w-72 rounded-xl border bg-popover p-4 shadow-lg text-popover-foreground"
     >
       <button

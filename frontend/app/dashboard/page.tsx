@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { listDocuments, type DocumentMeta } from "@/lib/api"
+import { friendlyError } from "@/lib/errors"
 import { DocumentCard } from "@/components/document-card"
 import { UploadZone } from "@/components/upload-zone"
 import { Button } from "@/components/ui/button"
@@ -20,7 +21,7 @@ export default function Dashboard() {
     let cancelled = false
     listDocuments()
       .then((data) => { if (!cancelled) setDocs(data) })
-      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load documents") })
+      .catch((err) => { if (!cancelled) setError(friendlyError(err instanceof Error ? err.message : "", "Failed to load your documents. Please refresh.")) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [])
@@ -54,7 +55,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-sm text-muted-foreground text-center py-4">{error}</p>}
 
       {!loading && !error && docs.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-5 py-24 text-center">
