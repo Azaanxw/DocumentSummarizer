@@ -27,6 +27,10 @@ backend/
 ### `main.py`
 Entry point. Defines the FastAPI app and all endpoints.
 
+**`GET /documents`** — list all documents for the mock user.
+- Returns `{"documents": [{"id", "filename", "created_at"}, ...]}`
+- Results ordered by `created_at` descending.
+
 **`POST /upload`** — ingest a PDF into the system.
 1. Validate file is a PDF with a filename.
 2. Read entire file into memory once.
@@ -103,6 +107,7 @@ Supabase (PostgreSQL + pgvector) interactions.
 |---|---|
 | `get_supabase_client()` | Initializes client using `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. |
 | `save_document_metadata(user_id, filename, content)` | Inserts into `documents`. Returns inserted row list or `None` on error. |
+| `get_user_documents(user_id)` | Returns `[{id, filename, created_at}]` for a user, newest first. Returns `[]` on error. |
 | `get_document_content(document_id)` | Fetches the `content` field of a document by its UUID. Returns `str` or `None`. |
 | `search_chunks(document_id, query_embedding, match_count, match_threshold)` | Calls `match_documents` RPC with a query embedding. Defaults: top 5 chunks, 0.5 similarity threshold. Returns list of matching chunks with `content`, `metadata`, `similarity`. |
 | `save_document_chunks(document_id, chunks)` | Batch-inserts into `document_chunks`. Each chunk must have `content`, `metadata`, and `embedding` keys. Returns `True`/`False`. |

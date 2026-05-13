@@ -1,10 +1,49 @@
 from google import genai  # type: ignore
 from google.genai import types  # type: ignore
+from openai import OpenAI
 import os
 import json
 
-def _get_client():
+
+def _get_gemini():
     return genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+
+def _get_openai():
+    return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+
+def _gemini(prompt: str) -> dict:
+    client = _get_gemini()
+    response = client.models.generate_content(
+        model="gemini-3.1-flash-lite",
+        contents=prompt,
+        config=types.GenerateContentConfig(response_mime_type="application/json")
+    )
+    return json.loads(response.text)
+
+
+def _openai(prompt: str) -> dict:
+    client = _get_openai()
+    response = client.chat.completions.create(
+        model="gpt-5.4-nano-2026-03-17",
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_object"},
+    )
+    return json.loads(response.choices[0].message.content or "{}")
+
+
+def _generate(prompt: str, label: str) -> dict | None:
+    try:
+        return _gemini(prompt)
+    except Exception as e:
+        print(f"Gemini {label} Error: {e} — falling back to OpenAI")
+    try:
+        return _openai(prompt)
+    except Exception as e:
+        print(f"OpenAI {label} Error: {e}")
+        return None
+
 
 def generate_summary_and_quiz(text: str) -> dict | None:
     """Generates a summary and 10-question multiple choice quiz from document text."""
@@ -28,18 +67,8 @@ Rules:
 
 Document:
 {text}"""
+    return _generate(prompt, "Summary/Quiz")
 
-    try:
-        client = _get_client()
-        response = client.models.generate_content(
-            model="gemini-3.1-flash-lite",
-            contents=prompt,
-            config=types.GenerateContentConfig(response_mime_type="application/json")
-        )
-        return json.loads(response.text)
-    except Exception as e:
-        print(f"Gemini Summary/Quiz Error: {e}")
-        return None
 
 def generate_answer(question: str, chunks: list[dict]) -> dict | None:
     """Generates a grounded answer with page citations from retrieved chunks."""
@@ -68,18 +97,8 @@ Context:
 {context}
 
 Question: {question}"""
+    return _generate(prompt, "Answer")
 
-    try:
-        client = _get_client()
-        response = client.models.generate_content(
-            model="gemini-3.1-flash-lite",
-            contents=prompt,
-            config=types.GenerateContentConfig(response_mime_type="application/json")
-        )
-        return json.loads(response.text)
-    except Exception as e:
-        print(f"Gemini Answer Error: {e}")
-        return None
 
 def generate_flashcards(text: str) -> dict | None:
     """Generates 10 flashcards (Q&A pairs) from document text."""
@@ -100,15 +119,4 @@ Rules:
 
 Document:
 {text}"""
-
-    try:
-        client = _get_client()
-        response = client.models.generate_content(
-            model="gemini-3.1-flash-lite",
-            contents=prompt,
-            config=types.GenerateContentConfig(response_mime_type="application/json")
-        )
-        return json.loads(response.text)
-    except Exception as e:
-        print(f"Gemini Flashcard Error: {e}")
-        return None
+    return _generate(prompt, "Flashcards")

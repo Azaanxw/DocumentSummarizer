@@ -47,6 +47,16 @@ def search_chunks(document_id: str, query_embedding: list[float], match_count: i
         print(f"Chunk Search Error: {e}")
         return []
 
+def get_user_documents(user_id: str) -> list[dict]:
+    """Returns all documents for a user, ordered by creation date descending."""
+    supabase = get_supabase_client()
+    try:
+        response = supabase.table("documents").select("id, filename, created_at").eq("user_id", user_id).order("created_at", desc=True).execute()
+        return response.data or []  # type: ignore
+    except Exception as e:
+        print(f"Document List Error: {e}")
+        return []
+
 def save_document_chunks(document_id: str, chunks: list[dict]) -> bool:
     """Batch-inserts page-anchored chunks with embeddings into document_chunks."""
     supabase = get_supabase_client()

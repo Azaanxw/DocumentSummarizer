@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\blizz\\\\Desktop\\\\Projects\\\\Document summarizer\\\\frontend\" -Recurse)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)",
+      "Bash(npx shadcn@latest add tabs skeleton badge separator --yes)",
+      "Bash(npx tsc *)",
+      "Bash(npx next *)",
+      "WebFetch(domain:platform.openai.com)",
+      "WebFetch(domain:github.com)",
+      "WebSearch",
+      "WebFetch(domain:developers.openai.com)"
+    ]
+  }
+}

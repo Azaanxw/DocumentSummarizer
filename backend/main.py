@@ -1,7 +1,8 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from s3_utils import upload_to_s3
-from db_utils import save_document_metadata, save_document_chunks, get_document_content, search_chunks
+from db_utils import save_document_metadata, save_document_chunks, get_document_content, search_chunks, get_user_documents
 from dotenv import load_dotenv
 from pdf_utils import extract_text_from_pdf, extract_chunks_from_pdf
 from embedding_utils import embed_texts
@@ -13,6 +14,13 @@ import asyncio
 load_dotenv()
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 MOCK_USER_ID = "57de27a3-60c2-430e-8896-f8daf0e835d9"
 
 class DocumentRequest(BaseModel):
@@ -21,6 +29,11 @@ class DocumentRequest(BaseModel):
 class AskRequest(BaseModel):
     document_id: str
     question: str
+
+@app.get("/documents")
+async def list_documents():
+    docs = get_user_documents(MOCK_USER_ID)
+    return {"documents": docs}
 
 @app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
