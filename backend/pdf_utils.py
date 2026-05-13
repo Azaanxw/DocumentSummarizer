@@ -1,5 +1,5 @@
 import fitz  # PyMuPDF
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter  # pyright: ignore[reportMissingImports]
 
 def extract_text_from_pdf(file_bytes: bytes) -> str:
     """Extracts all text from a PDF file stored in memory."""

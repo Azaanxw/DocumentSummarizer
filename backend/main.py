@@ -1,16 +1,20 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
+from pydantic import BaseModel
 from s3_utils import upload_to_s3
-from db_utils import save_document_metadata, save_document_chunks
+from db_utils import save_document_metadata, save_document_chunks, get_document_content
 from dotenv import load_dotenv
 from pdf_utils import extract_text_from_pdf, extract_chunks_from_pdf
 from embedding_utils import embed_texts
+from gemini_utils import generate_summary_and_quiz, generate_flashcards
 import uuid
 
 load_dotenv()
 app = FastAPI()
 
-# Temporary Mock User for testing
 MOCK_USER_ID = "57de27a3-60c2-430e-8896-f8daf0e835d9"
+
+class DocumentRequest(BaseModel):
+    document_id: str
 
 @app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
@@ -59,3 +63,27 @@ async def upload_pdf(file: UploadFile = File(...)):
         "text_preview": extracted_text[:100] + "...",
         "database_record": db_record
     }
+
+@app.post("/process-document")
+async def process_document(req: DocumentRequest):
+    content = get_document_content(req.document_id)
+    if not content:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    result = generate_summary_and_quiz(content)
+    if not result:
+        raise HTTPException(status_code=500, detail="Failed to generate summary and quiz")
+
+    return result
+
+@app.post("/generate-cards")
+async def generate_cards(req: DocumentRequest):
+    content = get_document_content(req.document_id)
+    if not content:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    result = generate_flashcards(content)
+    if not result:
+        raise HTTPException(status_code=500, detail="Failed to generate flashcards")
+
+    return result

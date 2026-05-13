@@ -31,10 +31,10 @@
 - [x] Create embedding_utils.py for OpenAI text-embedding-3-small.
 - [x] Sync upload flow: Extract -> Chunk -> Embed -> DB Store.
 
-### 3. Path A: Study Tools (Gemini 1.5 Flash)
-- [ ] Create Mega-Prompt for Summary and 10-Question Quiz. (Summary should summarize the main points and the quizzes should test user knowledge across the whole PDF using multiple choice questions)
-- [ ] Create Manual-Prompt for 10 Flashcards. (These flashcards contain the most likely questions that can get asked on the PDF and their given respective answers Q:A)
-- [ ] Build /process-document and /generate-cards endpoints.
+### 3. Path A: Study Tools (Gemini 3.1 Flash Lite)
+- [x] Create Mega-Prompt for Summary and 10-Question Quiz. (Summary should summarize the main points and the quizzes should test user knowledge across the whole PDF using multiple choice questions)
+- [x] Create Manual-Prompt for 10 Flashcards. (These flashcards contain the most likely questions that can get asked on the PDF and their given respective answers Q:A)
+- [x] Build /process-document and /generate-cards endpoints.
 
 ### 4. Interactive Q&A & Dictionary Logic
 - [ ] Build /ask endpoint using Supabase RPC for retrieval.

@@ -2,16 +2,17 @@
 
 ## Overview
 
-FastAPI backend that accepts PDF uploads, extracts text, stores the raw file in AWS S3, chunks and embeds the text for RAG, and saves everything to Supabase (PostgreSQL + pgvector).
+FastAPI backend that accepts PDF uploads, extracts text, stores the raw file in AWS S3, chunks and embeds the text for RAG, saves everything to Supabase (PostgreSQL + pgvector), and generates AI study tools (summary, quiz, flashcards) via Gemini 3.1 Flash Lite.
 
 ## Directory Structure
 
 ```
 backend/
-├── main.py             # FastAPI app + /upload endpoint
+├── main.py             # FastAPI app — /upload, /process-document, /generate-cards
 ├── pdf_utils.py        # PDF text extraction + page-anchored chunking (PyMuPDF)
 ├── embedding_utils.py  # Batch text embedding via OpenAI text-embedding-3-small
-├── db_utils.py         # Supabase client — documents + document_chunks inserts
+├── gemini_utils.py     # Gemini 3.1 Flash Lite — summary, quiz, flashcard generation
+├── db_utils.py         # Supabase client — documents + document_chunks queries
 ├── s3_utils.py         # AWS S3 upload and presigned URL helpers
 ├── requirements.txt    # Python dependencies
 ├── .env                # Environment variables (not committed)
@@ -24,9 +25,9 @@ backend/
 ## Files
 
 ### `main.py`
-Entry point. Defines the FastAPI app and the `POST /upload` endpoint.
+Entry point. Defines the FastAPI app and all endpoints.
 
-**Upload flow:**
+**`POST /upload`** — ingest a PDF into the system.
 1. Validate file is a PDF with a filename.
 2. Read entire file into memory once.
 3. `extract_text_from_pdf()` — full text string for `documents.content`.
@@ -37,6 +38,16 @@ Entry point. Defines the FastAPI app and the `POST /upload` endpoint.
 8. `save_document_metadata()` — insert into `documents`, extract returned `id`.
 9. `save_document_chunks()` — batch insert chunks + embeddings into `document_chunks`.
 10. Return JSON with filename, `chunks_stored` count, text preview, and DB record.
+
+**`POST /process-document`** — generate summary + quiz for an existing document.
+- Body: `{"document_id": "uuid"}`
+- Fetches `content` from `documents` table, sends to Gemini 3.1 Flash Lite.
+- Returns `{"summary": str, "quiz": [{"question", "options", "answer"}, ...]}`
+
+**`POST /generate-cards`** — generate 10 flashcards for an existing document.
+- Body: `{"document_id": "uuid"}`
+- Fetches `content` from `documents` table, sends to Gemini 3.1 Flash Lite.
+- Returns `{"flashcards": [{"question": str, "answer": str}, ...]}`
 
 > `MOCK_USER_ID` is hardcoded — replaced by JWT auth once the React frontend is ready.
 
@@ -61,6 +72,16 @@ OpenAI embedding wrapper.
 
 ---
 
+### `gemini_utils.py`
+Gemini 3.1 Flash Lite study tool generation. Both functions call `_get_client()` internally and enforce JSON output via `response_mime_type="application/json"`.
+
+| Function | Description |
+|---|---|
+| `generate_summary_and_quiz(text)` | Sends full document text with a mega-prompt to `gemini-3.1-flash-lite`. Returns `{"summary": str, "quiz": [...]}` — 10 multiple choice questions spread across the document. Returns `None` on error. |
+| `generate_flashcards(text)` | Sends full document text with a manual prompt to `gemini-3.1-flash-lite`. Returns `{"flashcards": [{"question": str, "answer": str}]}` — 10 Q&A pairs. Returns `None` on error. |
+
+---
+
 ### `db_utils.py`
 Supabase (PostgreSQL + pgvector) interactions.
 
@@ -68,6 +89,7 @@ Supabase (PostgreSQL + pgvector) interactions.
 |---|---|
 | `get_supabase_client()` | Initializes client using `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. |
 | `save_document_metadata(user_id, filename, content)` | Inserts into `documents`. Returns inserted row list or `None` on error. |
+| `get_document_content(document_id)` | Fetches the `content` field of a document by its UUID. Returns `str` or `None`. |
 | `save_document_chunks(document_id, chunks)` | Batch-inserts into `document_chunks`. Each chunk must have `content`, `metadata`, and `embedding` keys. Returns `True`/`False`. |
 
 **Supabase tables:**
@@ -120,8 +142,8 @@ Key dependencies:
 | `langchain-text-splitters` | `RecursiveCharacterTextSplitter` for page-anchored chunking |
 | `python-dotenv` | Loads `.env` into environment |
 | `python-multipart` | FastAPI multipart/form-data file upload support |
-| `langchain`, `langchain-openai`, `langchain-pinecone` | Reserved for Phase 3 Path A (study tools) |
-| `google-generativeai` | Gemini 1.5 Flash — reserved for Phase 3 Path A |
+| `langchain`, `langchain-openai`, `langchain-pinecone` | Reserved for future RAG chain work |
+| `google-genai` | Gemini 3.1 Flash Lite — summary, quiz, and flashcard generation |
 
 ---
 

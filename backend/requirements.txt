@@ -10,4 +10,4 @@ supabase
 pymupdf
 openai
 langchain-text-splitters
-google-generativeai
+google-genai

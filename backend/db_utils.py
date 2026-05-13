@@ -22,6 +22,16 @@ def save_document_metadata(user_id: str, filename: str, content: str):
         print(f"Database Insert Error: {e}")
         return None
 
+def get_document_content(document_id: str) -> str | None:
+    """Fetches the full extracted text for a document by its ID."""
+    supabase = get_supabase_client()
+    try:
+        response = supabase.table("documents").select("content").eq("id", document_id).single().execute()
+        return response.data["content"]  # type: ignore
+    except Exception as e:
+        print(f"Document Fetch Error: {e}")
+        return None
+
 def save_document_chunks(document_id: str, chunks: list[dict]) -> bool:
     """Batch-inserts page-anchored chunks with embeddings into document_chunks."""
     supabase = get_supabase_client()
