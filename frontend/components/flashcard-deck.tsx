@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { generateCards, type Flashcard } from "@/lib/api"
+import { generateCards, clearFlashcardsCache, type Flashcard } from "@/lib/api"
 import { friendlyError } from "@/lib/errors"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
@@ -10,23 +10,45 @@ import { cn } from "@/lib/utils"
 
 interface FlashcardDeckProps {
   documentId: string
+  initialCards?: Flashcard[]
 }
 
-export function FlashcardDeck({ documentId }: FlashcardDeckProps) {
-  const [loading, setLoading] = useState(true)
+export function FlashcardDeck({ documentId, initialCards }: FlashcardDeckProps) {
+  const [loading, setLoading] = useState(!initialCards)
+  const [clearing, setClearing] = useState(false)
   const [error, setError] = useState("")
-  const [cards, setCards] = useState<Flashcard[]>([])
+  const [cards, setCards] = useState<Flashcard[]>(initialCards ?? [])
   const [index, setIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
 
-  useEffect(() => {
+  function load() {
     let cancelled = false
+    setLoading(true)
+    setError("")
     generateCards(documentId)
       .then((data) => { if (!cancelled) setCards(data.flashcards) })
       .catch((err) => { if (!cancelled) setError(friendlyError(err instanceof Error ? err.message : "", "Failed to load flashcards. Please try again.")) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
+  }
+
+  useEffect(() => {
+    if (!initialCards) return load()
   }, [documentId])
+
+  async function handleClearCache() {
+    setClearing(true)
+    try {
+      await clearFlashcardsCache(documentId)
+      setIndex(0)
+      setFlipped(false)
+      load()
+    } catch {
+      // silently ignore
+    } finally {
+      setClearing(false)
+    }
+  }
 
   function go(dir: -1 | 1) {
     setFlipped(false)
@@ -61,9 +83,19 @@ export function FlashcardDeck({ documentId }: FlashcardDeckProps) {
 
   return (
     <div className="flex flex-col items-center gap-8 py-8">
-      <p className="text-sm text-muted-foreground">
-        {index + 1} / {cards.length}
-      </p>
+      <div className="flex w-full items-center justify-between">
+        <p className="text-sm text-muted-foreground">{index + 1} / {cards.length}</p>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleClearCache}
+          disabled={clearing}
+          className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <RotateCcw className={`size-3 ${clearing ? "animate-spin" : ""}`} />
+          Clear cache
+        </Button>
+      </div>
 
       <div
         className="relative w-full max-w-lg cursor-pointer"

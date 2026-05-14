@@ -1,13 +1,13 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { processDocument, type QuizQuestion } from "@/lib/api"
+import { processDocument, clearSummaryCache, type QuizQuestion } from "@/lib/api"
 import { friendlyError } from "@/lib/errors"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react"
 
 interface SummaryViewProps {
   documentId: string
@@ -15,12 +15,15 @@ interface SummaryViewProps {
 
 export function SummaryView({ documentId }: SummaryViewProps) {
   const [loading, setLoading] = useState(true)
+  const [clearing, setClearing] = useState(false)
   const [error, setError] = useState("")
   const [summary, setSummary] = useState("")
   const [quiz, setQuiz] = useState<QuizQuestion[]>([])
 
-  useEffect(() => {
+  function load() {
     let cancelled = false
+    setLoading(true)
+    setError("")
     processDocument(documentId)
       .then((data) => {
         if (cancelled) return
@@ -33,17 +36,33 @@ export function SummaryView({ documentId }: SummaryViewProps) {
       })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [documentId])
+  }
+
+  useEffect(load, [documentId])
+
+  async function handleClearCache() {
+    setClearing(true)
+    try {
+      await clearSummaryCache(documentId)
+      load()
+    } catch {
+      // silently ignore — next load will retry
+    } finally {
+      setClearing(false)
+    }
+  }
 
   if (loading) {
     return (
-      <div className="space-y-4 py-6">
-        <Skeleton className="h-5 w-1/3" />
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-5/6" />
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-4/5" />
+      <div className="flex flex-col items-center justify-center gap-5 py-20 text-center">
+        <div className="relative flex items-center justify-center">
+          <div className="size-14 rounded-full border-4 border-muted" />
+          <div className="absolute size-14 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+        </div>
+        <div className="space-y-1.5">
+          <p className="text-sm font-medium text-foreground">Analysing your document…</p>
+          <p className="text-xs text-muted-foreground">Generating summary and quiz questions</p>
+        </div>
       </div>
     )
   }
@@ -63,11 +82,21 @@ export function SummaryView({ documentId }: SummaryViewProps) {
   return (
     <div className="space-y-10 py-6">
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Summary</h2>
-        <div className="space-y-3 text-sm text-foreground leading-relaxed">
-          {summary.split(/\n\n+/).map((para, i) => (
-            <p key={i}>{para}</p>
-          ))}
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Summary</h2>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleClearCache}
+            disabled={clearing}
+            className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <RotateCcw className={`size-3 ${clearing ? "animate-spin" : ""}`} />
+            Clear cache
+          </Button>
+        </div>
+        <div className="space-y-2">
+          <StructuredSummary text={summary} />
         </div>
       </section>
 
@@ -79,6 +108,52 @@ export function SummaryView({ documentId }: SummaryViewProps) {
       )}
     </div>
   )
+}
+
+function StructuredSummary({ text }: { text: string }) {
+  const lines = text.split("\n").filter((l) => l.trim() !== "")
+  const elements: React.ReactNode[] = []
+  let bullets: string[] = []
+  let key = 0
+
+  function flushBullets() {
+    if (bullets.length === 0) return
+    elements.push(
+      <ul key={key++} className="space-y-1.5 ml-1">
+        {bullets.map((b, i) => (
+          <li key={i} className="flex gap-2.5 text-sm leading-relaxed">
+            <span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
+            <span className="text-foreground">{b}</span>
+          </li>
+        ))}
+      </ul>
+    )
+    bullets = []
+  }
+
+  for (const line of lines) {
+    const header = line.match(/^\*\*(.+)\*\*$/)
+    if (header) {
+      flushBullets()
+      elements.push(
+        <h3 key={key++} className="pt-3 text-sm font-semibold text-foreground first:pt-0">
+          {header[1]}
+        </h3>
+      )
+    } else if (line.startsWith("- ")) {
+      bullets.push(line.slice(2))
+    } else {
+      flushBullets()
+      elements.push(
+        <p key={key++} className="text-sm text-foreground leading-relaxed">
+          {line}
+        </p>
+      )
+    }
+  }
+  flushBullets()
+
+  return <>{elements}</>
 }
 
 function QuizCarousel({ questions }: { questions: QuizQuestion[] }) {

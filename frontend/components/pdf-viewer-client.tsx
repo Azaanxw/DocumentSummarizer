@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useImperativeHandle, useRef, useState } from "react"
+import { useCallback, useEffect, useImperativeHandle, useRef, useState } from "react"
 import { Document, Page, pdfjs } from "react-pdf"
 import "react-pdf/dist/Page/TextLayer.css"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
 
 export interface PdfViewerHandle {
-  scrollToPage: (pageNumber: number, snippet?: string) => void
+  scrollToPage: (pageNumber: number, snippets?: string[]) => void
 }
 
 interface PdfViewerProps {
@@ -16,17 +16,86 @@ interface PdfViewerProps {
   ref?: React.Ref<PdfViewerHandle>
 }
 
+const normWord = (w: string) =>
+  w.normalize("NFKD").replace(/[^a-z0-9]/gi, "").toLowerCase()
+
+// Returns the set of itemIndex values (matching react-pdf's customTextRenderer itemIndex)
+// that correspond to the citation snippets on the page.
+//
+// Uses concatenated-string substring search rather than token-by-token matching so that
+// words split across adjacent text items (e.g. "60" + "-65%" rendering as two items
+// instead of one) still match a snippet that contains "60-65%" as a single word.
+function findMatchedItemIndices(
+  pageItems: Array<{ str: string; idx: number }>,
+  snippetTexts: string[]
+): Set<number> {
+  // Build per-token metadata: normalised form, source itemIdx, and position range
+  // inside the concatenated page string.
+  const tokens: { norm: string; itemIdx: number; start: number; end: number }[] = []
+  let concatPage = ""
+
+  for (const { str, idx } of pageItems) {
+    for (const raw of str.split(/\s+/)) {
+      const n = normWord(raw)
+      if (!n) continue
+      tokens.push({ norm: n, itemIdx: idx, start: concatPage.length, end: concatPage.length + n.length })
+      concatPage += n
+    }
+  }
+
+  const matched = new Set<number>()
+
+  for (const text of snippetTexts) {
+    const snippetWords = text.split(/\s+/).map(normWord).filter(Boolean)
+    if (snippetWords.length < 2) continue
+    const snippetConcat = snippetWords.join("")
+
+    // Primary: substring search on the concatenated string.
+    // Immune to how the PDF renderer splits words across text items.
+    const pos = concatPage.indexOf(snippetConcat)
+    if (pos !== -1) {
+      const end = pos + snippetConcat.length
+      for (const tok of tokens) {
+        if (tok.start < end && tok.end > pos) matched.add(tok.itemIdx)
+      }
+      continue
+    }
+
+    // Fallback: exact token-by-token sequential match.
+    // Catches cases where normWord produces different results between snippet and page
+    // (e.g. different Unicode normalisation applied by the backend extractor).
+    outer: for (let i = 0; i <= tokens.length - snippetWords.length; i++) {
+      for (let j = 0; j < snippetWords.length; j++) {
+        if (tokens[i + j].norm !== snippetWords[j]) continue outer
+      }
+      for (let j = 0; j < snippetWords.length; j++) matched.add(tokens[i + j].itemIdx)
+      break
+    }
+    // No fuzzy fallback — partial matches produce too many false positives.
+  }
+
+  return matched
+}
+
 export function PdfViewer({ documentId, ref }: PdfViewerProps) {
   const [numPages, setNumPages] = useState(0)
   const [containerWidth, setContainerWidth] = useState(0)
-  const [highlight, setHighlight] = useState<{ page: number; text: string } | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
+  const [highlight, setHighlight] = useState<{ page: number; texts: string[] } | null>(null)
+  // Set of itemIndex values to highlight on the cited page
+  const [highlightedItems, setHighlightedItems] = useState<{ page: number; items: Set<number> } | null>(null)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map())
-  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Text items per page, stored when onGetTextSuccess fires
+  const pageTextItems = useRef<Map<number, Array<{ str: string; idx: number }>>>(new Map())
+  // Ref so callbacks can read the latest highlight without stale closure
+  const highlightRef = useRef<{ page: number; texts: string[] } | null>(null)
 
   const pdfUrl = `${process.env.NEXT_PUBLIC_API_URL}/documents/${documentId}/pdf`
+
+  // Keep ref in sync on every render (no dependency array — runs every render)
+  useEffect(() => { highlightRef.current = highlight })
 
   // Track container width for responsive page rendering
   useEffect(() => {
@@ -48,8 +117,7 @@ export function PdfViewer({ documentId, ref }: PdfViewerProps) {
           const page = Number((entry.target as HTMLElement).dataset.page)
           visibleRatios.set(page, entry.intersectionRatio)
         }
-        let best = 1
-        let bestRatio = -1
+        let best = 1, bestRatio = -1
         visibleRatios.forEach((ratio, page) => {
           if (ratio > bestRatio) { bestRatio = ratio; best = page }
         })
@@ -63,29 +131,36 @@ export function PdfViewer({ documentId, ref }: PdfViewerProps) {
 
   // Imperative handle for citation navigation
   useImperativeHandle(ref, () => ({
-    scrollToPage(pageNumber: number, snippet?: string) {
+    scrollToPage(pageNumber: number, snippets?: string[]) {
       const el = pageRefs.current.get(pageNumber)
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "start" })
-      }
-      if (snippet) {
-        if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current)
-        setHighlight({ page: pageNumber, text: snippet })
-        highlightTimerRef.current = setTimeout(() => setHighlight(null), 4000)
-      }
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
+      if (snippets?.length) setHighlight({ page: pageNumber, texts: snippets })
     },
   }))
 
-  function makeTextRenderer(pageNumber: number) {
-    return ({ str }: { str: string }) => {
-      if (!highlight || highlight.page !== pageNumber || !str) return str
-      const escaped = highlight.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-      return str.replace(
-        new RegExp(escaped, "gi"),
-        (m) => `<mark style="background:#fef08a;color:inherit;border-radius:2px;padding:0 1px">${m}</mark>`
-      )
+  // When highlight changes, immediately match if the page's text is already cached
+  useEffect(() => {
+    if (!highlight) { setHighlightedItems(null); return }
+    const items = pageTextItems.current.get(highlight.page)
+    if (items) {
+      setHighlightedItems({ page: highlight.page, items: findMatchedItemIndices(items, highlight.texts) })
+    } else {
+      setHighlightedItems(null) // Will be computed in handleTextSuccess once text loads
     }
-  }
+  }, [highlight])
+
+  // Cache text items per page; if this is the cited page, compute highlighted indices
+  const handleTextSuccess = useCallback((pageNumber: number, textContent: { items: Array<Record<string, unknown>> }) => {
+    const items = textContent.items
+      .map((item, idx) => ({ str: item["str"], idx }))
+      .filter((x): x is { str: string; idx: number } => typeof x.str === "string" && x.str.length > 0)
+    pageTextItems.current.set(pageNumber, items)
+
+    const hl = highlightRef.current
+    if (hl?.page === pageNumber) {
+      setHighlightedItems({ page: pageNumber, items: findMatchedItemIndices(items, hl.texts) })
+    }
+  }, [])
 
   return (
     <div className="relative h-full">
@@ -110,12 +185,22 @@ export function PdfViewer({ documentId, ref }: PdfViewerProps) {
                   className="mb-1"
                 >
                   <Page
-                    key={highlight?.page === page ? `${page}-hl` : page}
+                    key={page}
                     pageNumber={page}
                     width={containerWidth}
                     renderTextLayer
                     renderAnnotationLayer={false}
-                    customTextRenderer={makeTextRenderer(page)}
+                    onGetTextSuccess={(tc) => handleTextSuccess(page, tc as { items: Array<Record<string, unknown>> })}
+                    customTextRenderer={
+                      highlightedItems?.page === page && highlightedItems.items.size > 0
+                        ? ({ str, itemIndex }) =>
+                            highlightedItems.items.has(itemIndex)
+                              // color:transparent hides the text-layer text so the PDF canvas
+                              // text shows through — prevents the doubled-text visual artifact
+                              ? `<mark style="background:rgba(250,204,21,0.45);border-radius:2px;padding:0 1px;color:transparent">${str}</mark>`
+                              : str
+                        : undefined
+                    }
                   />
                 </div>
               )

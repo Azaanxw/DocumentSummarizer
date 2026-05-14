@@ -52,6 +52,20 @@ export async function processDocument(documentId: string): Promise<{ summary: st
   )
 }
 
+export async function getCacheStatus(documentId: string): Promise<{ has_summary: boolean; has_flashcards: boolean }> {
+  return request(`/documents/${documentId}/cache-status`)
+}
+
+export async function clearSummaryCache(documentId: string): Promise<void> {
+  _cache.delete(`process-document:${documentId}`)
+  await request(`/documents/${documentId}/cache/summary`, { method: "DELETE" })
+}
+
+export async function clearFlashcardsCache(documentId: string): Promise<void> {
+  _cache.delete(`generate-cards:${documentId}`)
+  await request(`/documents/${documentId}/cache/flashcards`, { method: "DELETE" })
+}
+
 export async function generateCards(documentId: string): Promise<{ flashcards: Flashcard[] }> {
   return cached(`generate-cards:${documentId}`, () =>
     request("/generate-cards", {

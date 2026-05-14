@@ -46,10 +46,10 @@ def _generate(prompt: str, label: str) -> dict | None:
 
 
 def generate_summary_and_quiz(text: str) -> dict | None:
-    """Generates a summary and 10-question multiple choice quiz from document text."""
+    """Generates a structured summary and 10-question multiple choice quiz from document text."""
     prompt = f"""You are an expert study assistant. Analyse the following document and return a JSON response with exactly this structure:
 {{
-  "summary": "<A clear 3-5 paragraph summary covering the main points of the document>",
+  "summary": "<structured summary — follow the format rules below exactly>",
   "quiz": [
     {{
       "question": "<question text>",
@@ -59,11 +59,25 @@ def generate_summary_and_quiz(text: str) -> dict | None:
   ]
 }}
 
-Rules:
-- The summary must cover all major topics in the document.
+Summary format rules:
+- Begin with 1-2 plain sentences giving a direct overview of what the document is about.
+- Then write 3-5 thematic sections. Each section must be formatted exactly as:
+  **Section Title**
+  - concise factual bullet point
+  - concise factual bullet point
+  - concise factual bullet point
+- Section titles must reflect the actual topics covered in the document.
+- Each bullet point must be one clear, factual sentence. No sub-bullets.
+- Do not use dashes (--), transitional filler phrases, or vague openers like "This document discusses" or "It is important to note".
+- Write in plain, direct language. Avoid overly formal or stilted phrasing.
+- Use \\n for newlines inside the JSON string.
+
+Quiz rules:
 - Generate exactly 10 quiz questions spread across the whole document, not just the beginning.
 - Each question must have exactly 4 options labelled A) B) C) D).
 - The answer field must be just the letter (A, B, C, or D).
+- Questions must test understanding of the actual subject matter and concepts in the document — facts, ideas, arguments, processes, definitions, cause and effect.
+- Do NOT ask about the document itself as an artefact: no questions about publication date, author biography, copyright, edition, legal status, source, or anything a reader would not learn from reading the content.
 
 Document:
 {text}"""
@@ -91,7 +105,8 @@ Return a JSON response with exactly this structure:
 Rules:
 - If the context does not contain enough information to answer, set answer to "The document does not contain enough information to answer this question." and return an empty citations array.
 - Citations must reference only pages that appear in the context.
-- Snippets must be direct quotes from the context, not paraphrases.
+- Snippets must be verbatim quotes of 10-20 words copied exactly from the context — long enough to be uniquely locatable on the page.
+- Do not use snippets shorter than 8 words.
 
 Context:
 {context}

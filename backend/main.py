@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
 from s3_utils import upload_to_s3, create_presigned_url, download_from_s3
-from db_utils import save_document_metadata, save_document_chunks, get_document_content, search_chunks, get_user_documents, get_document_filename, get_document_cache, save_document_cache
+from db_utils import save_document_metadata, save_document_chunks, get_document_content, search_chunks, get_user_documents, get_document_filename, get_document_cache, save_document_cache, clear_summary_cache, clear_flashcards_cache
 from dotenv import load_dotenv
 from pdf_utils import extract_text_from_pdf, extract_chunks_from_pdf
 from embedding_utils import embed_texts
@@ -101,6 +101,21 @@ def process_document(req: DocumentRequest):
     save_document_cache(req.document_id, {"summary": result["summary"], "quiz": result["quiz"]})
     return result
 
+@app.get("/documents/{document_id}/cache-status")
+def get_cache_status(document_id: str):
+    cache = get_document_cache(document_id)
+    return {
+        "has_summary": bool(cache and cache.get("summary")),
+        "has_flashcards": bool(cache and cache.get("flashcards")),
+    }
+
+@app.delete("/documents/{document_id}/cache/summary")
+def delete_summary_cache(document_id: str):
+    ok = clear_summary_cache(document_id)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to clear summary cache")
+    return {"ok": True}
+
 @app.post("/generate-cards")
 def generate_cards(req: DocumentRequest):
     cache = get_document_cache(req.document_id)
@@ -131,6 +146,13 @@ def ask(req: AskRequest):
         raise HTTPException(status_code=500, detail="Failed to generate answer")
 
     return result
+
+@app.delete("/documents/{document_id}/cache/flashcards")
+def delete_flashcards_cache(document_id: str):
+    ok = clear_flashcards_cache(document_id)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to clear flashcards cache")
+    return {"ok": True}
 
 @app.get("/documents/{document_id}/pdf-url")
 def get_pdf_url(document_id: str):

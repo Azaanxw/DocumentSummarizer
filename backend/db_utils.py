@@ -32,7 +32,7 @@ def get_document_content(document_id: str) -> str | None:
         print(f"Document Fetch Error: {e}")
         return None
 
-def search_chunks(document_id: str, query_embedding: list[float], match_count: int = 5, match_threshold: float = 0.3) -> list[dict]:
+def search_chunks(document_id: str, query_embedding: list[float], match_count: int = 10, match_threshold: float = 0.3) -> list[dict]:
     """Calls match_documents RPC to retrieve semantically similar chunks for a query."""
     supabase = get_supabase_client()
     try:
@@ -85,6 +85,26 @@ def save_document_cache(document_id: str, data: dict) -> bool:
         return True
     except Exception as e:
         print(f"Save Cache Error: {e}")
+        return False
+
+def clear_summary_cache(document_id: str) -> bool:
+    """Nulls out summary and quiz cache columns so they are regenerated on next request."""
+    supabase = get_supabase_client()
+    try:
+        supabase.table("documents").update({"summary": None, "quiz": None}).eq("id", document_id).execute()
+        return True
+    except Exception as e:
+        print(f"Clear Summary Cache Error: {e}")
+        return False
+
+def clear_flashcards_cache(document_id: str) -> bool:
+    """Nulls out flashcards cache column so it is regenerated on next request."""
+    supabase = get_supabase_client()
+    try:
+        supabase.table("documents").update({"flashcards": None}).eq("id", document_id).execute()
+        return True
+    except Exception as e:
+        print(f"Clear Flashcards Cache Error: {e}")
         return False
 
 def save_document_chunks(document_id: str, chunks: list[dict]) -> bool:
